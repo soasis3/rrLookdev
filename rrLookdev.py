@@ -471,35 +471,22 @@ def export_usd():
 
     print(f"[INFO] export geo node: {geo_node}")
     base_geo_name = geo_node.split("|")[-1]
-    temp_original_name = base_geo_name + "_ORIGINAL_TEMP"
+    temp_geo_name = base_geo_name + "_USD_EXPORT_TMP"
 
-    # 혹시 남아있는 temp 제거
-    if cmds.objExists(temp_original_name):
+    if cmds.objExists(temp_geo_name):
         try:
-            cmds.delete(temp_original_name)
-            print(f"[DEBUG] deleted leftover temp node: {temp_original_name}")
+            cmds.delete(temp_geo_name)
+            print(f"[DEBUG] deleted leftover temp node: {temp_geo_name}")
         except Exception as e:
-            cmds.warning(f"[❌] leftover temp node 삭제 실패: {e}")
+            cmds.warning(f"[? leftover temp node ?? ??: {e}")
             return False
 
-    # 원본 geo rename
+    # ??? ??? ?? ???? export ???? ??
     try:
-        original_geo_renamed = cmds.rename(geo_node, temp_original_name)
-        print(f"[DEBUG] original geo renamed: {geo_node} -> {original_geo_renamed}")
-    except Exception as e:
-        cmds.warning(f"[❌] geo rename 실패: {e}")
-        return False
-
-    # duplicate 생성
-    try:
-        duplicated_geo = cmds.duplicate(original_geo_renamed, rr=True, ic=True, name=base_geo_name)[0]
+        duplicated_geo = cmds.duplicate(geo_node, rr=True, ic=True, name=temp_geo_name)[0]
         print(f"[DEBUG] duplicated geo created: {duplicated_geo}")
     except Exception as e:
-        cmds.warning(f"[❌] geo duplicate 실패: {e}")
-        try:
-            cmds.rename(temp_original_name, base_geo_name)
-        except:
-            pass
+        cmds.warning(f"[? geo duplicate ??: {e}")
         return False
 
     try:
@@ -507,15 +494,6 @@ def export_usd():
         print("[DEBUG] duplicated geo parented to world")
     except:
         print("[DEBUG] duplicated geo already in world")
-
-    if duplicated_geo != base_geo_name:
-        if cmds.objExists(base_geo_name):
-            try:
-                cmds.delete(base_geo_name)
-            except:
-                pass
-        duplicated_geo = cmds.rename(duplicated_geo, base_geo_name)
-        print(f"[DEBUG] duplicated geo renamed to: {duplicated_geo}")
 
     # temp / final 경로
     temp_dir = os.path.expanduser("~/Documents/maya")
@@ -710,30 +688,9 @@ def export_usd():
 
     print(f"🧾 JSON saved to: {final_json}")
 
-    # final copy
-    try:
-        shutil.copy(temp_usd_anim, final_usd)
-        print(f"✅ USD copied to: {final_usd}")
-    except PermissionError:
-        cmds.warning("블랜더가 열려있어서 USD를 덮어쓸 수 없습니다.")
-    except Exception as e:
-        cmds.warning(f"[⚠️] USD 파일 복사 실패: {e}")
-
-    # 최소 원복
     if cmds.objExists(duplicated_geo):
         try:
             cmds.delete(duplicated_geo)
-        except:
-            pass
-
-    if cmds.objExists(temp_original_name):
-        try:
-            if cmds.objExists(base_geo_name):
-                try:
-                    cmds.delete(base_geo_name)
-                except:
-                    pass
-            cmds.rename(temp_original_name, base_geo_name)
         except:
             pass
 
