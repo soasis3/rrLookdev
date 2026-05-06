@@ -1043,7 +1043,9 @@ def update_asset_menu(*args):
 
     clear_option_menu_items(processMenuName)
     cmds.menuItem(parent=processMenuName, label="Fin")
-    if not is_coc_project(selected_project):
+    if is_coc_project(selected_project):
+        cmds.menuItem(parent=processMenuName, label="rig")
+    else:
         cmds.menuItem(parent=processMenuName, label="mod")
         cmds.menuItem(parent=processMenuName, label="rig")
 
@@ -1064,7 +1066,9 @@ def update_process_menu():
 
     clear_option_menu_items(processMenuName)
     cmds.menuItem(parent=processMenuName, label="Fin")
-    if not is_coc_project(selected_project):
+    if is_coc_project(selected_project):
+        cmds.menuItem(parent=processMenuName, label="rig")
+    else:
         cmds.menuItem(parent=processMenuName, label="mod")
         cmds.menuItem(parent=processMenuName, label="rig")
 
