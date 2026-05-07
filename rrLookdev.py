@@ -1882,10 +1882,9 @@ def rrLookdevUI():
     cmds.text(label="StoryFarm Asset Manager v1.1", align='center', height=40, enableBackground=True)
     cmds.frameLayout(lv=0, w=300, mh=5, mw=10)
 
-    cmds.rowLayout(numberOfColumns=3, columnWidth3=[92, 92, 92], columnAlign=[(1, 'center'), (2, 'center'), (3, 'center')])
-    cmds.button(label="Asset Browser", height=30, backgroundColor=[0.23, 0.23, 0.23], width=92, command=lambda *args: open_selected_asset_folder())
-    cmds.button(label="Setup", height=30, backgroundColor=[0.33, 0.36, 0.42], width=92, command=open_shared_project_setup_for_lookdev)
-    cmds.button(label="Deploy", height=30, backgroundColor=[0.35, 0.45, 0.35], width=92, command=deploy_rr_lookdev)
+    cmds.rowLayout(numberOfColumns=2, columnWidth2=[138, 138], columnAlign=[(1, 'center'), (2, 'center')])
+    cmds.button(label="Asset Browser", height=30, backgroundColor=[0.23, 0.23, 0.23], width=138, command=lambda *args: open_selected_asset_folder())
+    cmds.button(label="Setup", height=30, backgroundColor=[0.33, 0.36, 0.42], width=138, command=open_shared_project_setup_for_lookdev)
     cmds.setParent('..')
     
     cmds.columnLayout(adjustableColumn=True)  
