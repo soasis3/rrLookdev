@@ -541,50 +541,9 @@ def export_usd():
     print(f"[INFO] final usd   : {final_usd}")
     print(f"[INFO] final json  : {final_json}")
 
-    bend = None
-    handle = None
-
-    # ------------------------------------------------------------
-    # bend를 "애니메이션"으로 쓰지 않고, snapshot 2장만 뽑는다
-    # ------------------------------------------------------------
+    # ??? bend/snapshot ??? ?? ?? USD? export
     try:
-        if category in APPLY_BEND_FOR:
-            bend, handle = cmds.nonLinear(duplicated_geo, type="bend", name="Bend_Deform_TMP#")
-            bend_attr = bend + ".curvature"
-            print(f"[DEBUG] bend node   : {bend}")
-            print(f"[DEBUG] bend handle : {handle}")
-
-            # frame1 snapshot
-            cmds.setAttr(bend_attr, 0.0)
-            try:
-                cmds.dgdirty(allPlugs=True)
-            except:
-                pass
-            cmds.refresh(force=True)
-            bbox_f1 = cmds.exactWorldBoundingBox(duplicated_geo)
-            print(f"[DEBUG] snapshot f1 bbox : {bbox_f1}")
-            _export_static_snapshot_usd(duplicated_geo, temp_usd_f1, asset_name)
-
-            # frame5 snapshot
-            cmds.setAttr(bend_attr, BEND_AMOUNT)
-            try:
-                cmds.dgdirty(allPlugs=True)
-            except:
-                pass
-            cmds.refresh(force=True)
-            bbox_f5 = cmds.exactWorldBoundingBox(duplicated_geo)
-            print(f"[DEBUG] snapshot f5 bbox : {bbox_f5}")
-            _export_static_snapshot_usd(duplicated_geo, temp_usd_f5, asset_name)
-
-            if bbox_f1 == bbox_f5:
-                print("[WARN] snapshot bbox도 동일함. 이 PC에서는 bend static 평가 자체도 의심해야 함.")
-
-            # 두 static USD를 animated USD로 합치기
-            _combine_two_static_usd_to_animated(temp_usd_f1, temp_usd_f5, temp_usd_anim)
-
-        else:
-            # bend 대상 아니면 그냥 static export
-            _export_static_snapshot_usd(duplicated_geo, temp_usd_anim, asset_name)
+        _export_static_snapshot_usd(duplicated_geo, temp_usd_anim, asset_name)
 
     except Exception as e:
         cmds.warning(f"[❌] snapshot USD 생성 실패: {e}")
