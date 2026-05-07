@@ -141,23 +141,23 @@ def get_assets_root(project, category):
 def get_asset_folder_path(project, category, asset, process=None):
     base_path = get_project_path(project)
     if is_coc_project(project):
+        if process and process != "Fin":
+            return os.path.join(base_path, asset, process)
         return os.path.join(base_path, asset)
     if process == "Fin" or not process:
         return os.path.join(base_path, category, asset)
     return os.path.join(base_path, category, asset, process)
 
 def get_asset_file_path(project, category, asset, process, selected_file=None):
-    if is_coc_project(project):
-        asset_folder = get_asset_folder_path(project, category, asset)
+    asset_folder = get_asset_folder_path(project, category, asset, process)
+    if process == "Fin":
         if selected_file:
             return os.path.join(asset_folder, selected_file)
-        return os.path.join(asset_folder, f"{asset}_rig_fin.mb")
-
-    base_path = get_project_path(project)
-    if process == "Fin":
-        return os.path.join(base_path, category, asset, f"{asset}.mb")
+        if is_coc_project(project):
+            return os.path.join(asset_folder, f"{asset}_rig_fin.mb")
+        return os.path.join(asset_folder, f"{asset}.mb")
     if selected_file:
-        return os.path.join(base_path, category, asset, process, selected_file)
+        return os.path.join(asset_folder, selected_file)
     return None
 
 def get_scene_export_info(current_file_path):
@@ -471,22 +471,35 @@ def export_usd():
 
     print(f"[INFO] export geo node: {geo_node}")
     base_geo_name = geo_node.split("|")[-1]
-    temp_geo_name = base_geo_name + "_USD_EXPORT_TMP"
+    temp_original_name = base_geo_name + "_ORIGINAL_TEMP"
 
-    if cmds.objExists(temp_geo_name):
+    # ?? ???? temp ??
+    if cmds.objExists(temp_original_name):
         try:
-            cmds.delete(temp_geo_name)
-            print(f"[DEBUG] deleted leftover temp node: {temp_geo_name}")
+            cmds.delete(temp_original_name)
+            print(f"[DEBUG] deleted leftover temp node: {temp_original_name}")
         except Exception as e:
             cmds.warning(f"[? leftover temp node ?? ??: {e}")
             return False
 
-    # ??? ??? ?? ???? export ???? ??
+    # ?? geo? ?? temp ???? ??
     try:
-        duplicated_geo = cmds.duplicate(geo_node, rr=True, ic=True, name=temp_geo_name)[0]
+        original_geo_renamed = cmds.rename(geo_node, temp_original_name)
+        print(f"[DEBUG] original geo renamed: {geo_node} -> {original_geo_renamed}")
+    except Exception as e:
+        cmds.warning(f"[? geo rename ??: {e}")
+        return False
+
+    # duplicate ??
+    try:
+        duplicated_geo = cmds.duplicate(original_geo_renamed, rr=True, ic=True, name=base_geo_name)[0]
         print(f"[DEBUG] duplicated geo created: {duplicated_geo}")
     except Exception as e:
         cmds.warning(f"[? geo duplicate ??: {e}")
+        try:
+            cmds.rename(temp_original_name, base_geo_name)
+        except:
+            pass
         return False
 
     try:
@@ -494,6 +507,15 @@ def export_usd():
         print("[DEBUG] duplicated geo parented to world")
     except:
         print("[DEBUG] duplicated geo already in world")
+
+    if duplicated_geo != base_geo_name:
+        if cmds.objExists(base_geo_name):
+            try:
+                cmds.delete(base_geo_name)
+            except:
+                pass
+        duplicated_geo = cmds.rename(duplicated_geo, base_geo_name)
+        print(f"[DEBUG] duplicated geo renamed to: {duplicated_geo}")
 
     # temp / final 경로
     temp_dir = os.path.expanduser("~/Documents/maya")
@@ -691,6 +713,17 @@ def export_usd():
     if cmds.objExists(duplicated_geo):
         try:
             cmds.delete(duplicated_geo)
+        except:
+            pass
+
+    if cmds.objExists(temp_original_name):
+        try:
+            if cmds.objExists(base_geo_name):
+                try:
+                    cmds.delete(base_geo_name)
+                except:
+                    pass
+            cmds.rename(temp_original_name, base_geo_name)
         except:
             pass
 
@@ -1019,31 +1052,34 @@ def update_process_menu():
     selected_project = cmds.optionMenu(projectMenuName, query=True, value=True)
     selected_category = cmds.optionMenu(categoryMenuName, query=True, value=True)
     selected_asset = cmds.optionMenu(assetMenuName, query=True, value=True)
-    base_path = get_project_path(selected_project)
+    current_process = cmds.optionMenu(processMenuName, query=True, value=True) if cmds.optionMenu(processMenuName, query=True, exists=True) else "Fin"
+
+    available_processes = []
+    for process_name in ["Fin", "mod", "rig"]:
+        folder_path = get_asset_folder_path(selected_project, selected_category, selected_asset, process_name)
+        if os.path.exists(folder_path):
+            if process_name == "Fin":
+                files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f)) and f.lower().endswith((".mb", ".ma"))]
+                if files:
+                    available_processes.append(process_name)
+            else:
+                files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f)) and f.lower().endswith((".mb", ".ma"))]
+                if files:
+                    available_processes.append(process_name)
 
     clear_option_menu_items(processMenuName)
-    cmds.menuItem(parent=processMenuName, label="Fin")
-    if is_coc_project(selected_project):
-        cmds.menuItem(parent=processMenuName, label="rig")
+    if not available_processes:
+        cmds.menuItem(parent=processMenuName, label="Fin")
+        selected_process = "Fin"
     else:
-        cmds.menuItem(parent=processMenuName, label="mod")
-        cmds.menuItem(parent=processMenuName, label="rig")
-
-    if is_coc_project(selected_project):
-        set_option_menu_value_safe(processMenuName, "Fin")
-        update_file_menu()
-        save_maya_ldv_state(cmds.optionMenu(projectMenuName, q=True, v=True))
-        return
-
-    fin_file_mb = os.path.join(base_path, selected_category, selected_asset, f"{selected_asset}.mb")
-    fin_file_ma = os.path.join(base_path, selected_category, selected_asset, f"{selected_asset}.ma")
-
-    selected_process = "Fin" if (os.path.exists(fin_file_mb) or os.path.exists(fin_file_ma)) else "mod"
+        for process_name in available_processes:
+            cmds.menuItem(parent=processMenuName, label=process_name)
+        selected_process = current_process if current_process in available_processes else available_processes[0]
 
     set_option_menu_value_safe(processMenuName, selected_process)
     update_file_menu()
     save_maya_ldv_state(cmds.optionMenu(projectMenuName, q=True, v=True))
-    # print("[DEBUG] update_process_menu 통해 상태 저장됨")
+    # print("[DEBUG] update_process_menu ??? ??? ?????")
 
 def update_file_menu(*args):
     selected_project = cmds.optionMenu(projectMenuName, query=True, value=True)
@@ -1051,48 +1087,23 @@ def update_file_menu(*args):
     selected_asset = cmds.optionMenu(assetMenuName, query=True, value=True)
     selected_process = cmds.optionMenu(processMenuName, query=True, value=True)
 
-    base_path = get_project_path(selected_project)
     selected_file = cmds.optionMenu(fileMenuName, query=True, value=True) if cmds.optionMenu(fileMenuName, query=True, exists=True) else None
-    if is_coc_project(selected_project):
-        files_path = get_asset_folder_path(selected_project, selected_category, selected_asset)
-        clear_option_menu_items(fileMenuName)
-        if os.path.exists(files_path):
-            files = sorted([f for f in os.listdir(files_path)
-                            if os.path.isfile(os.path.join(files_path, f)) and (f.endswith(".mb") or f.endswith(".ma"))],
-                           key=lambda x: os.path.getmtime(os.path.join(files_path, x)), reverse=True)
-            for file in files:
-                cmds.menuItem(parent=fileMenuName, label=file)
-            if files:
-                set_option_menu_value_safe(fileMenuName, files[0])
-    elif selected_process == "Fin":
-        files_path = os.path.join(base_path, selected_category, selected_asset)
-        expected_file = f"{selected_asset}.mb"
-        expected_file_ma = f"{selected_asset}.ma"
+    files_path = get_asset_folder_path(selected_project, selected_category, selected_asset, selected_process)
+    clear_option_menu_items(fileMenuName)
 
-        clear_option_menu_items(fileMenuName)
-        if os.path.exists(os.path.join(files_path, expected_file)):
-            cmds.menuItem(parent=fileMenuName, label=expected_file)
-            set_option_menu_value_safe(fileMenuName, expected_file)
-        elif os.path.exists(os.path.join(files_path, expected_file_ma)):
-            cmds.menuItem(parent=fileMenuName, label=expected_file_ma)
-            set_option_menu_value_safe(fileMenuName, expected_file_ma)
+    if os.path.exists(files_path):
+        files = sorted(
+            [f for f in os.listdir(files_path) if os.path.isfile(os.path.join(files_path, f)) and f.lower().endswith((".mb", ".ma"))],
+            key=lambda x: os.path.getmtime(os.path.join(files_path, x)),
+            reverse=True,
+        )
+        for file in files:
+            cmds.menuItem(parent=fileMenuName, label=file)
+        if files:
+            preferred_file = selected_file if selected_file in files else files[0]
+            set_option_menu_value_safe(fileMenuName, preferred_file)
     else:
-        files_path = os.path.join(base_path, selected_category, selected_asset, selected_process)
-        if os.path.exists(files_path):
-            files = sorted([f for f in os.listdir(files_path)
-                            if os.path.isfile(os.path.join(files_path, f)) and (f.endswith(".mb") or f.endswith(".ma"))],
-                           key=lambda x: os.path.getmtime(os.path.join(files_path, x)), reverse=True)
-            clear_option_menu_items(fileMenuName)
-            for file in files:
-                cmds.menuItem(parent=fileMenuName, label=file)
-            if files:
-                set_option_menu_value_safe(fileMenuName, files[0])
-        else:
-            clear_option_menu_items(fileMenuName)
-
-
-
-
+        clear_option_menu_items(fileMenuName)
 
 def load_selected_asset(action):
     selected_project = cmds.optionMenu(projectMenuName, query=True, value=True)
@@ -1101,38 +1112,25 @@ def load_selected_asset(action):
     selected_process = cmds.optionMenu(processMenuName, query=True, value=True)
     selected_file = cmds.optionMenu(fileMenuName, query=True, value=True) if cmds.optionMenu(fileMenuName, query=True, exists=True) else None
     
-    base_path = get_project_path(selected_project)
-    
-    # 'Fin' 프로세스 선택 시 최종 파일 경로 구성
-    if is_coc_project(selected_project):
-        if selected_file:
-            asset_path = get_asset_file_path(selected_project, selected_category, selected_asset, selected_process, selected_file)
-        else:
-            cmds.warning("No file selected.")
-            return
+    asset_path = None
+    if selected_file:
+        asset_path = get_asset_file_path(selected_project, selected_category, selected_asset, selected_process, selected_file)
     elif selected_process == 'Fin':
-        asset_path = os.path.join(base_path, selected_category, selected_asset, f"{selected_asset}.mb")
+        asset_path = get_asset_file_path(selected_project, selected_category, selected_asset, selected_process, selected_file)
     else:
-        # 파일 메뉴에서 선택된 파일 확인
-        if selected_file:
-            asset_path = os.path.join(base_path, selected_category, selected_asset, selected_process, selected_file)
-        else:
-            # 'Fin' 이외의 프로세스 선택 시 파일 선택이 필요
-            cmds.warning("No file selected.")
-            return
+        cmds.warning("No file selected.")
+        return
 
     if os.path.exists(asset_path):
         if action == "open":
             cmds.file(asset_path, o=True, force=True, ignoreVersion=True)
         elif action == "reference":
-            asset_name = selected_asset   # 드롭다운에서 고른 에셋 이름
+            asset_name = selected_asset   # ????????? ??? ??? ???
             cmds.file(asset_path, r=True, namespace=asset_name, options="v=0")
         else:
             cmds.warning(f"Unsupported action: {action}")
     else:
         cmds.warning(f"Asset path does not exist: {asset_path}")
-
-
 
 def get_materials_from_selected_objects():
     selectedObjects = cmds.ls(sl=True, dag=True, leaf=True, noIntermediate=True, shapes=True)
@@ -1832,19 +1830,12 @@ def open_selected_asset_folder():
     selected_asset = cmds.optionMenu(assetMenuName, query=True, value=True)
     selected_process = cmds.optionMenu(processMenuName, query=True, value=True)
 
-    base_path = get_project_path(selected_project)
-    
-    if is_coc_project(selected_project):
-        folder_path = get_asset_folder_path(selected_project, selected_category, selected_asset)
-    elif selected_process == "Fin":
-        folder_path = os.path.join(base_path, selected_category, selected_asset)
-    else:
-        folder_path = os.path.join(base_path, selected_category, selected_asset, selected_process)
+    folder_path = get_asset_folder_path(selected_project, selected_category, selected_asset, selected_process)
 
     if os.path.exists(folder_path):
         os.startfile(folder_path)
     else:
-        cmds.warning(f"[⚠️] 경로가 존재하지 않습니다: {folder_path}")
+        cmds.warning(f"[???] ????? ?????? ??????: {folder_path}")
 
 def deploy_rr_lookdev(*args):
     if not os.path.exists(RR_LOOKDEV_LOCAL_PATH):
