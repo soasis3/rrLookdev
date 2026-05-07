@@ -347,6 +347,17 @@ def export_usd():
     APPLY_BEND_FOR = ['ch', 'prop', 'bg']
 
     def _export_static_snapshot_usd(target_geo, usd_path, asset_name):
+        mesh_shapes = cmds.listRelatives(target_geo, allDescendents=True, type="mesh", fullPath=True) or []
+        mesh_transforms = []
+        for mesh_shape in mesh_shapes:
+            parents = cmds.listRelatives(mesh_shape, parent=True, fullPath=True) or []
+            if parents:
+                mesh_transforms.append(parents[0])
+        mesh_transforms = list(dict.fromkeys(mesh_transforms))
+
+        if not mesh_transforms:
+            raise RuntimeError(f"No mesh transforms found under {target_geo}")
+
         usd_options = (
             f'exportUVs=1;'
             f'exportSkels=none;'
@@ -362,9 +373,9 @@ def export_usd():
             f'exportVisibility=1;'
             f'mergeTransformAndShape=1;'
             f'stripNamespaces=0;'
-            f'parentScope=/{asset_name};'
+            f'rootPrim=/{asset_name};'
         )
-        cmds.select(target_geo, r=True)
+        cmds.select(mesh_transforms, r=True)
         cmds.file(usd_path, force=True, options=usd_options, typ="USD Export", pr=True, es=True)
 
     def _combine_two_static_usd_to_animated(usd_f1, usd_f5, usd_out):
